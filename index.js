@@ -1,6 +1,6 @@
 "use strict"
 //
-export function plugin({
+exports.plugin = function({
     srcFilename,
     srcContent,
     devPath,
@@ -28,7 +28,7 @@ export function plugin({
     return content.changedSource()
 }
 //
-export function createWarning({ state, text }) {
+exports.createWarning = function({ state, text }) {
     const coll = new Set()
     //
     function print(name) {
@@ -39,7 +39,7 @@ export function createWarning({ state, text }) {
     return { print }
 }
 //
-export function createAliases({
+exports.createAliases = function({
     config = OBJECT_EMPTY,
     devPath = STRING_EMPTY
 }) {
