@@ -4,15 +4,20 @@ exports.plugin = function({
     srcFilename,
     srcContent,
     devPath,
+    extensions,
     Aliases,
     Warning
 }) {
     // check input
     if ( !(typeof srcFilename === TYPEOF_STRING &&
            srcFilename.has(devPath) &&
-           srcFilename.endsWith(EXT_JS) &&
            typeof srcContent === TYPEOF_STRING &&
            Aliases) ) return
+    //
+    extensions = extensions || [ EXT_JS ]
+    if (!extensions.some(ex =>
+        srcFilename.endsWith(ex)
+    )) return
     //
     devPath = setSlash(devPath)
     //
