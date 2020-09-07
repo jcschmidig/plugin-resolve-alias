@@ -8,27 +8,26 @@ exports.plugin = function({
     Aliases,
     Warning
 }) {
+    devPath = setSlash(devPath)
     // check input
     if ( !(typeof srcFilename === TYPEOF_STRING &&
-           srcFilename.has(devPath) &&
-           typeof srcContent === TYPEOF_STRING &&
-           Aliases) ) return
-    //
-    extensions = extensions || [ EXT_JS ]
-    if (!extensions.some(ex =>
-        srcFilename.endsWith(ex)
-    )) return
-    //
-    devPath = setSlash(devPath)
+        srcFilename.has(devPath) &&
+        typeof srcContent === TYPEOF_STRING) ) return
+    if ( !(extensions || [ EXT_JS ]).some(ext =>
+        srcFilename.endsWith(ext)) ) return
+    if ( !Aliases ) {
+        console.log("[plugin-resolve-alias] Aliases missing!")
+        return
+    }
     //
     const content = new Content(srcContent, Warning)
     // create relative path fragment
     const relPath = PARENT_DIR.repeat(distance(srcFilename, devPath))
                     ||
                     CURRENT_DIR
-    // replace aliases
+    // find and replace aliases
     for (const [name, path] of Aliases)
-        content.replace(name, relPath + path)
+        content.findAndReplace(name, relPath + path)
     //
     return content.changedSource()
 }
@@ -41,6 +40,7 @@ exports.createWarning = function({ state, text }) {
         coll.add(name) &&
         console.log(text, name)
     }
+    //
     return { print }
 }
 //
@@ -50,7 +50,9 @@ exports.createAliases = function({
 }) {
     const alias = new Map()
     for (const [name, path] of Object.entries(config))
-        alias.set(unsetSlash(name), unsetSlash(path.tail(devPath)))
+        alias.set(unsetSlash(name),
+                  unsetSlash(path.tail(devPath)))
+    //
     return alias
 }
 //
@@ -78,9 +80,7 @@ function unsetSlash(value) {
     if (typeof value !== TYPEOF_STRING) return STRING_EMPTY
     //
     return value.substring(
-        // start: false => 0, true => 1
         +value.startsWith(SLASH),
-        // length - [ 0 | 1 ]
         value.length - value.endsWith(SLASH)
     )
 }
@@ -102,7 +102,7 @@ function Content(source, warning) {
     this.changedSource = function() {
         return this.changed && this.source
     }
-    this.replace = function(name, path) {
+    this.findAndReplace = function(name, path) {
         const regex = new regexImport(this.source, name, path)
         if (!regex.found()) return
         //
