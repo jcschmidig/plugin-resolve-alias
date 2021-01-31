@@ -1,47 +1,36 @@
 "use strict"
 //
 exports.plugin = function({
-    srcFilename,
-    srcContent,
-    devPath,
-    extensions,
-    Aliases,
-    Warning
-}) {
-    devPath = setSlash(devPath)
+    srcFilename, srcContent, devPath, extensions, Aliases:config, Warning })
+{
     // check input
-    if ( !(typeof srcFilename === TYPEOF_STRING &&
-        srcFilename.has(devPath) &&
-        typeof srcContent === TYPEOF_STRING) ) return
+    if (!typeofString(srcFilename, srcContent, devPath)) return
+    devPath = setSlash(devPath)
+    if ( !srcFilename.has(devPath) ) return
     if ( !(extensions || [ EXT_JS ]).some(ext =>
         srcFilename.endsWith(ext)) ) return
-    if ( !Aliases ) {
-        console.log("[plugin-resolve-alias] Aliases missing!")
-        return
-    }
+    if ( !(Aliases ||
+           console.log("[plugin-resolve-alias] Aliases missing!")) ) return
     //
-    const content = new Content(srcContent, Warning)
+    const content = Content(srcContent, Warning)
     // create relative path fragment
     const relPath = PARENT_DIR.repeat(distance(srcFilename, devPath))
                     ||
                     CURRENT_DIR
-    // find and replace aliases
+    // find and replace all aliases
     for (const [name, path] of Aliases)
-        content.findAndReplace(name, relPath + path)
+        content.match(name, relPath + path)
     //
     return content.changedSource()
 }
 //
 exports.createWarning = function({ state, text }) {
     const coll = new Set()
-    //
-    function print(name) {
-        !(state || coll.has(name)) &&
-        coll.add(name) &&
-        console.log(text, name)
+    return {
+        print: name => !(state || coll.has(name)) &&
+                       coll.add(name) &&
+                       console.log(text, name)
     }
-    //
-    return { print }
 }
 //
 exports.createAliases = function({
@@ -58,7 +47,6 @@ exports.createAliases = function({
 //
 //
 String.prototype.has = function(val)
-    // ~-1 => 0 => false
     { return ~this.indexOf(val) }
 String.prototype.tail = function(sep)
     // rejoin the part behind the separator
@@ -71,81 +59,69 @@ const
     EXT_JS = ".js",
     SLASH = "/",
     CURRENT_DIR = "./",
-    PARENT_DIR = "../",
-    LEFT_PAREN = "(",
-    RIGHT_PAREN = ")",
-    DOLLAR = "$"
+    PARENT_DIR = "../"
 //
-function unsetSlash(value) {
-    if (typeof value !== TYPEOF_STRING) return STRING_EMPTY
-    //
-    return value.substring(
+const typeofString = (...values) =>
+    values.every(value => typeof value === TYPEOF_STRING)
+const unsetSlash = value =>
+    value.substring(
         +value.startsWith(SLASH),
         value.length - value.endsWith(SLASH)
     )
-}
-function setSlash(value) {
-    return SLASH + unsetSlash(value) + SLASH
-}
+const setSlash = value => SLASH + unsetSlash(value) + SLASH
 //
-function distance(filePath, path) {
+const distance = (filePath, path) =>
     // count the slashes behind the path
-    return --filePath.tail(path)
-                     .split(SLASH)
-                     .length
-}
+    --filePath.tail(path)
+              .split(SLASH)
+              .length
 //
-function Content(source, warning) {
-    this.changed = false
-    this.source = source
-    this.warning = warning
-    this.changedSource = function() {
-        return this.changed && this.source
-    }
-    this.findAndReplace = function(name, path) {
-        const regex = new regexImport(this.source, name, path)
-        if (!regex.found()) return
-        //
-        this.source = regex.replace()
-        this.changed |= true
-        this.warning && this.warning.print(name)
-    }
-}
-//
-function regexImport(source, name, path) {
-    this.source = source
-    this.search = createSearch(name)
-    this.path = replaceWith(path)
-    this.found = function() {
-        return this.search.test(this.source)
-    }
-    this.replace = function() {
-        return this.source.replace(this.search, this.path)
-    }
+const Content = (source, warning) => {
+    let changed = false
+    let src = source
+    const changedSource = () => changed && src
+    const match = (name, path, regex) =>
+        (regex = regexImport(src, name, path)).found() && (
+            src = regex.replace(),
+            changed |= true,
+            warning && warning.print(name)
+        )
     //
-    function createSearch(name) {
-        const WHITE_SPACE = '\\s+',
-              STR_DELIM = `['|"]`,
-              STR_SLASH_DELIM = `['|"|\\/]`,
-              GLOBAL = 'g'
-        //
-        const rx = setGroup(WHITE_SPACE, 'from', WHITE_SPACE, STR_DELIM) +
-                   escape(name) +
-                   setGroup(STR_SLASH_DELIM)
-        //
-        return new RegExp(rx, GLOBAL)
-    }
-    function replaceWith(path) {
-        return getGroup(1) + path + getGroup(2)
-    }
-    function setGroup(...elem) {
-        return LEFT_PAREN + elem.join(STRING_EMPTY) + RIGHT_PAREN
-    }
-    function getGroup(ord) {
-        return DOLLAR + ord
-    }
-    // secure name in regex
-    function escape(name) {
-        return name.replace(/[.*+\-?^${}()|[\]\\]/g, '\\$&')
-    }
+    return { changedSource, match }
+}
+//
+const regexImport = (source, name, path) => {
+    const
+        WHITE_SPACE = '\\s+',
+        STR_DELIM = `['|"]`,
+        STR_SLASH_DELIM = `['|"|\\/]`
+    //
+    const rx = Rx()
+    const createSearch = name =>
+        rx.getGlobalSearch(
+            rx.setGroup(`import|from`, WHITE_SPACE, STR_DELIM) +
+            rx.secure(name) +
+            rx.setGroup(STR_SLASH_DELIM)
+        )
+    //
+    const replaceWith = path => rx.getGroup(1) + path + rx.getGroup(2)
+    const search = createSearch(name)
+    const found = () => search.test(source)
+    const replace = () => source.replace(search, replaceWith(path))
+    //
+    return { found, replace }
+}
+
+const Rx = () => {
+    const
+        LEFT_PAREN = "(", RIGHT_PAREN = ")",
+        GLOBAL = 'g', DOLLAR = '$'
+    //
+    const getGlobalSearch = value => new RegExp(value, GLOBAL)
+    const setGroup = (...elem) =>
+        LEFT_PAREN + elem.join(STRING_EMPTY) + RIGHT_PAREN
+    const getGroup = ord => DOLLAR + ord
+    const secure = name => name.replace(/[.*+\-?^${}()|[\]\\]/g, '\\$&')
+    //
+    return { getGlobalSearch, setGroup, getGroup, secure }
 }
