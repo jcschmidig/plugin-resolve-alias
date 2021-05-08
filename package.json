@@ -1,6 +1,6 @@
 {
   "name": "plugin-resolve-alias",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Base package for resolving alias in plugins",
   "main": "index.js",
   "scripts": {

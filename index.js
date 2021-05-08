@@ -9,7 +9,7 @@ exports.plugin = function({
     if ( !srcFilename.has(devPath) ) return
     if ( !(extensions || [ EXT_JS ]).some(ext =>
         srcFilename.endsWith(ext)) ) return
-    if ( !(Aliases ||
+    if ( !(config ||
            console.log("[plugin-resolve-alias] Aliases missing!")) ) return
     //
     const content = Content(srcContent, Warning)
@@ -18,7 +18,7 @@ exports.plugin = function({
                     ||
                     CURRENT_DIR
     // find and replace all aliases
-    for (const [name, path] of Aliases)
+    for (const [name, path] of config)
         content.match(name, relPath + path)
     //
     return content.changedSource()
